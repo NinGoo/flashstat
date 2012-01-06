@@ -9,6 +9,8 @@ Flashstat retrieves information from dmsetup table/dmsetup status/sysctl
 
 Usage :
 -------------------
+You need sudo privileage to run this tool.
+
 flashstat [options]
 options:
   -i|--interval         default is 5 second
