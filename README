@@ -1,0 +1,37 @@
+License : released under GPL v2.
+
+About Flashstat :
+-------------------
+Flashcache from facebook is a great project.
+
+And this tiny tool flashstat is for flashcache status per second, 
+Flashstat retrieves information from dmsetup table/dmsetup status/sysctl
+
+Usage :
+-------------------
+flashstat [options]
+options:
+  -i|--interval         default is 5 second
+  -c|--count            default is 0, means never exit
+  -d|--device           flashcache mapping device name, default is /dev/mapping/cachedev
+  -h|--help             print help information
+
+output:
+  read/s                reads per second for cachedev
+  write/s               writes per second for cachedev
+  diskr/s               disk reads per second
+  diskw/s               disk writes per second
+  ssdr/s                ssd reads per second
+  ssdw/s                ssd writes per second
+  uread/s               uncached reads per second
+  uwrit/s               uncached writes per second
+  metaw/s               metadata ssd writes per second
+  clean/s               cleanings per second
+  repl/s                replacement per second
+  wrepl/s               write replacement per second
+  hit%                  read hit percent(current hit%|total hit%)
+  whit%                 write hit percent(current whit%|total whit%)
+  dwhit%                dirty write hit percent(current dwhit%|total dwhit%)
+
+Haiyuan Ning(NinGoo)
+haiyuan.ning@gmail.com

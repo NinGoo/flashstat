@@ -1,0 +1,350 @@
+#!/usr/bin/perl -w
+####################################################################################
+# creator: NinGoo
+# email  : haiyuan.ning@gmail.com
+# Description: a tool for flashcache status per seconds
+# created: 2012-01-04
+# version: 0.2
+#
+#####################################################################################
+use POSIX qw(strftime);
+use strict;
+use Getopt::Long;
+use Term::ANSIColor;
+Getopt::Long::Configure qw(no_ignore_case);
+$SIG{TERM} = $SIG{INT} = \&reset_color;
+
+sub reset_color {
+  print color ("yellow");
+  print "\nExit Now...\n\n";
+  print color ("reset");
+  exit;
+}
+
+my %opt;                 # option parameters
+my %result;              # result for status per seconds
+my %hit;                 # hit percent
+my %sysctl;              # sysctl parameters
+my %dmsetup_table;       # dmsetup table info
+my %dmsetup_status;      # dmsetup status info
+
+my $format_title = "%19s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s\n";
+my $interval = 5;
+my $count = 0;
+my $dev = "/dev/mapper/cachedev";
+
+get_options();
+get_dmsetup_table();
+get_sysctl();
+get_dmsetup_status();
+print_header();
+
+my $n = 0;
+while(1){
+  if($n % 20 == 0){ # print title every 20 lines
+    print color ("blue");
+    print color ("bold");
+    printf $format_title, "current_time", "read/s", "write/s", "diskr/s", "diskw/s", "ssdr/s", "ssdw/s", "uread/s", "uwrit/s", "metaw/s", "clean/s","repl/s","wrepl/s", "hit%", "whit%", "dwhit%";
+    print color ("reset");
+  }
+
+  my %dmsetup_status_old = %dmsetup_status;
+  sleep($interval);
+  get_dmsetup_status();
+  # calculate status per second
+  foreach (keys(%dmsetup_status)){
+    $result{$_} = ($dmsetup_status{$_} - $dmsetup_status_old{$_}) / ($interval + 0.00001); 
+  }
+  # calculate hit percent
+  $result{read_hits} = sprintf "%d", ($result{read_hits} * 100) / ($result{reads} + 0.0001);
+  $result{write_hits} = sprintf "%d",  ($result{write_hits} * 100)/ ($result{writes} + 0.0001);
+  $result{dirty_write_hits} = sprintf "%d", ($result{dirty_write_hits} * 100) / ($result{writes} + 0.0001);
+
+  # print value
+  print color ("yellow");
+  printf "%19s ", get_current_time();
+  print color ("reset");
+
+  $result{reads} > 10000 ? print color ("red") : print color ("white");
+  printf "%7d ", $result{reads} and print color ("reset");
+  $result{writes} > 10000 ? print color ("red") : print color ("white");
+  printf "%7d ", $result{writes} and print color ("reset");
+
+  $result{disk_reads} > 1000 ? print color ("red") : print color ("green");
+  printf "%7d ", $result{disk_reads} and print color ("reset");
+  $result{disk_writes} > 1000 ? print color ("red") : print color ("green");
+  printf "%7d ", $result{disk_writes} and print color ("reset");
+
+  $result{ssd_reads} > 10000 ? print color ("red") : print color ("white");
+  printf "%7d ", $result{ssd_reads} and print color ("reset");
+  $result{ssd_writes} > 10000 ? print color ("red") : print color ("white");
+  printf "%7d ", $result{ssd_writes} and print color ("reset");
+
+  $result{uncached_reads} > 100 ? print color ("red") : print color ("green");
+  printf "%7d ", $result{uncached_reads} and print color ("reset");
+  $result{uncached_writes} > 100 ? print color ("red") : print color ("green");
+  printf "%7d ", $result{uncached_writes} and print color ("reset");
+
+  $result{md_writes} > 100 ? print color ("red") : print color ("white");
+  printf "%7d ", $result{md_writes} and print color ("reset");
+  $result{cleanings} > 100 ? print color ("red") : print color ("white");
+  printf "%7d ", $result{cleanings} and print color ("reset");
+  $result{replacement} > 100 ? print color ("red") : print color ("white");
+  printf "%7d ", $result{replacement} and print color ("reset");
+  $result{wreplacement} > 100 ? print color ("red") : print color ("white");
+  printf "%7d ", $result{wreplacement} and print color ("reset");
+
+  $result{read_hits} < 90 ? print color ("red") : print color ("green");
+  printf "%7s ", $result{read_hits}."|".$hit{read_hits} and print color ("reset");
+  $result{write_hits} < 90 ? print color ("red") : print color ("green");
+  printf "%7s ", $result{write_hits}."|".$hit{write_hits} and print color ("reset");
+  $result{dirty_write_hits} < 90 ? print color ("red") : print color ("green");
+  printf "%7s ", $result{dirty_write_hits}."|".$hit{dirty_write_hits} and print color ("reset");
+  print "\n";
+  print color ("reset");
+
+  $n++;
+  exit if($count > 0 && $n >= $count);
+}
+
+##############################################################
+# get sysctl parameter of flashcache
+##############################################################
+sub get_sysctl{
+  chomp(my $tmp = `sudo /sbin/sysctl -a | grep flashcache`);
+  my @lines = split(/\n/, $tmp);
+  foreach my $line (@lines){
+    if($line =~ /\+/){ # for new version of flashcache sysctl has per ssd+disk dev parameter
+      my $dev_device = $dmsetup_table{ssd_dev}."+".$dmsetup_table{disk_dev};
+      $dev_device =~ s/\/dev\///g;
+      next if($line !~ /\Q$dev_device\E/);
+    }
+    if($line =~ /cache_all/){
+      $sysctl{cache_all} = (split(/=/, $line))[1];
+      $sysctl{cache_all} =~ s/^\s+//;
+    }
+    elsif($line =~ /reclaim_policy/){
+      $sysctl{reclaim_policy} = (split(/=/, $line))[1];
+      $sysctl{reclaim_policy} =~ s/^\s+//;
+    }
+    elsif($line =~ /dirty_thresh_pct/){
+      $sysctl{dirty_thresh_pct} = (split(/=/, $line))[1];
+      $sysctl{dirty_thresh_pct} =~ s/^\s+//;
+    }
+    elsif($line =~ /max_clean_ios_set/){
+      $sysctl{max_clean_ios_set} = (split(/=/, $line))[1];
+      $sysctl{max_clean_ios_set} =~ s/^\s+//;
+    }
+    elsif($line =~ /max_clean_ios_total/){
+      $sysctl{max_clean_ios_total} = (split(/=/, $line))[1];
+      $sysctl{max_clean_ios_total} =~ s/^\s+//;
+    }
+  }
+}
+
+##############################################################
+# get dmsetup status for flashcache device
+###############################################################
+sub get_dmsetup_status{
+  my $flag = 0;
+  chomp(my $tmp = `sudo dmsetup status $dev`);
+  my @lines = split(/\n/,$tmp);
+  foreach my $line(@lines){
+    $line =~ s/^\s+//g;
+    if($line =~ m/^reads\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+)/g;
+      $dmsetup_status{reads} = $1;
+      $dmsetup_status{writes} = $2;
+    }
+    elsif($line =~ m/^disk reads\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+).*\((\d+).*\((\d+)/g;
+      $dmsetup_status{disk_reads} = $1;
+      $dmsetup_status{disk_writes} = $2;
+      $dmsetup_status{ssd_reads} = $3;
+      $dmsetup_status{ssd_writes} = $4;
+    }
+    elsif($line =~ m/^uncached reads\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+).*\((\d+)/g;
+      $dmsetup_status{uncached_reads} = $1;
+      $dmsetup_status{uncached_writes} = $2;
+      $dmsetup_status{uncached_requeue} = $3;
+    }
+    elsif($line =~ m/^metadata batch\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+)/g;
+      $dmsetup_status{md_writes} = $2;
+    }
+    elsif($line =~ m/^cleanings\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+)/g;
+      $dmsetup_status{cleanings} = $1;
+    }
+    elsif($line =~ m/^replacement\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+)/g;
+      $dmsetup_status{replacement} = $1;
+      $dmsetup_status{wreplacement} = $2;
+    }
+    elsif($line =~ m/^read hits\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+)/g;
+      $dmsetup_status{read_hits} = $1;
+      $hit{read_hits} = $2;
+    }
+    elsif($line =~ m/^write hits\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+)/g;
+      $dmsetup_status{write_hits} = $1;
+      $hit{write_hits} = $2;
+    }
+    elsif($line =~ m/^dirty write hits\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+)/g;
+      $dmsetup_status{dirty_write_hits} = $1;
+      $hit{dirty_write_hits} = $2;
+    }
+  }
+  exit if($flag == 0);
+}
+
+##############################################################
+## get dmsetup table for flashcache device
+###############################################################
+sub get_dmsetup_table{
+  my $flag = 0;
+  chomp(my $tmp = `sudo dmsetup table $dev`);
+  my @lines = split(/\n/, $tmp);
+  foreach my $line (@lines){
+    $line =~ s/^\s+//g;
+    if($line =~ m/^ssd dev \(.*\)/){
+      $flag = 1;
+      if($line =~ /cache mode/){ # for new version of flashcache, get cache mode
+        $line =~ m/cache mode\((\w+)/;
+        $dmsetup_table{cache_mode} = $1;
+      } 
+      $line =~ m/(\/\w+\/\w+).*\((\/\w+\/\w+)/;
+      $dmsetup_table{ssd_dev} = $1;
+      $dmsetup_table{disk_dev} = $2;
+    }
+    elsif($line =~ m/^capacity\(.*\)/){
+      $flag = 1;
+      if($line =~ /metadata block size\(.*\)/){
+        $line =~ m/(\d+\w).*\((\d+).*\((\d+\w).*\((\d+\w)/;
+        $dmsetup_table{capacity} = $1;
+        $dmsetup_table{associativity} = $2;
+        $dmsetup_table{block_size} = $3;
+        $dmsetup_table{metadata_block_size} = $4;
+      }
+      else{
+        $line =~ m/(\d+\w).*\((\d+).*\((\d+\w)/;
+        $dmsetup_table{capacity} = $1;
+        $dmsetup_table{associativity} = $2;
+        $dmsetup_table{block_size} = $3;
+      }
+    }
+    elsif($line =~ m/^total blocks\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+).*\((\d+)/;
+      $dmsetup_table{total_blocks} = $1;
+      $dmsetup_table{cached_blocks} = $2;
+      $dmsetup_table{cached_percent} = $3;
+    }
+    elsif($line =~ m/^dirty blocks\(.*\)/){
+      $flag = 1;
+      $line =~ m/(\d+).*\((\d+)/;
+      $dmsetup_table{dirty_blocks} = $1;
+      $dmsetup_table{dirty_percent} = $2;
+    }
+    elsif($line =~ /skip sequential thresh\(.*\)/){
+      $flag = 1;
+      $line =~ /(\d+\w)/;
+      $dmsetup_table{skip_sequential_thresh} = $1;
+    }
+  }
+  exit if($flag == 0);
+}
+
+##############################################################
+# get current time
+###############################################################
+sub get_current_time{
+  return strftime("%Y-%m-%d %H:%M:%S",localtime);
+}
+
+##############################################################
+## get option
+###############################################################
+sub get_options{
+  GetOptions(\%opt,
+                    'h|help',        
+                    'i|interval=i',     
+                    'c|count=i',         
+                    'd|device=s',         
+                  );
+
+  $opt{'h'} and print_usage();
+  $opt{'i'} and $interval = $opt{'i'};
+  $opt{'c'} and $count = $opt{'c'};
+  $opt{'d'} and $dev = $opt{'d'};
+}
+
+##############################################################
+# print help information
+###############################################################
+sub print_usage{
+        print <<EOF;
+
+==========================================================================================
+Flashstat: a tool for flashcache status per second
+           Created By jiangfeng\@taobao.com
+           Version 0.1\@2012-01-04
+==========================================================================================
+Usage : flashstat [options]
+Command line options :
+
+   -h,--help           Print Help Info. 
+   -i,--interval       Time(second) Interval.  
+   -C,--count          Times. 
+   -d,--device         Flashcache device.
+EOF
+  exit;
+}
+
+sub print_header{
+  print color ("green");
+  print "======================================================================================================\n";
+  print "Flashstat: a tool for flashcache status per second\n";
+  print "           Created By jiangfeng\@taobao.com\n";
+  print "======================================================================================================\n";
+  if(defined($dmsetup_table{ssd_dev})){
+    printf "%20s: %10s", "SSD Device", $dmsetup_table{ssd_dev};
+    printf "%20s: %10s", " Disk Device", $dmsetup_table{disk_dev} if(defined($dmsetup_table{disk_dev}));
+    printf "%20s: %10s", " Cache Mode", $dmsetup_table{cache_mode} if(defined($dmsetup_table{cache_mode}));
+    print "\n";
+    printf "%20s: %10s", "Capacity", $dmsetup_table{capacity} if(defined($dmsetup_table{capacity}));
+    printf "%20s: %10s", " Block Size", $dmsetup_table{block_size} if(defined($dmsetup_table{block_size}));
+    printf "%20s: %10s", " Meta Block Size", $dmsetup_table{metadata_block_size} if(defined($dmsetup_table{metadata_block_size}));
+    print "\n";
+    printf "%20s: %10d", "Total Blocks", $dmsetup_table{total_blocks} if(defined($dmsetup_table{total_blocks}));
+    printf "%20s: %10d", " Cached Blocks", $dmsetup_table{cached_blocks} if(defined($dmsetup_table{cached_blocks}));
+    printf "%20s: %10d", " Cached Percent", $dmsetup_table{cached_percent} if(defined($dmsetup_table{cached_percent}));
+    print "\n";
+    printf "%20s: %10d", "Set Numbers", $dmsetup_table{associativity} if(defined($dmsetup_table{associativity}));
+    printf "%20s: %10d", " Dirty Blocks", $dmsetup_table{dirty_blocks} if(defined($dmsetup_table{dirty_blocks}));
+    printf "%20s: %10d", " Dirty Percent", $dmsetup_table{dirty_percent} if(defined($dmsetup_table{dirty_percent}));
+    print "\n";
+    printf "%20s: %10d", "cache_all", $sysctl{cache_all} if(defined($sysctl{cache_all}));
+    printf "%20s: %10d", " reclaim_policy", $sysctl{reclaim_policy} if(defined($sysctl{reclaim_policy}));
+    printf "%20s: %10d", " dirty_thresh_pct", $sysctl{dirty_thresh_pct} if(defined($sysctl{dirty_thresh_pct}));  
+    print "\n";
+    printf "%20s: %10d", "max_clean_ios_set", $sysctl{max_clean_ios_set} if(defined($sysctl{max_clean_ios_set}));
+    printf "%20s: %10d", " max_clean_ios_total", $sysctl{max_clean_ios_total} if(defined($sysctl{max_clean_ios_total}));
+    printf "%20s: %10s", " skip_seq_thresh", $dmsetup_table{skip_sequential_thresh} if(defined($dmsetup_table{skip_sequential_thresh}));
+    print "\n";
+    print "======================================================================================================\n";
+  }
+  print color ("reset");
+}
