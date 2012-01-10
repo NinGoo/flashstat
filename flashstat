@@ -1,7 +1,6 @@
 #!/usr/bin/perl -w
 ####################################################################################
-# creator: NinGoo
-# email  : haiyuan.ning@gmail.com
+# creator: NinGoo(haiyuan.ning@gmail.com) 
 # Description: a tool for flashcache status per seconds
 # created: 2012-01-04
 # version: 0.2
@@ -15,9 +14,9 @@ Getopt::Long::Configure qw(no_ignore_case);
 $SIG{TERM} = $SIG{INT} = \&reset_color;
 
 sub reset_color {
-  print color ("yellow");
+  print YELLOW();
   print "\nExit Now...\n\n";
-  print color ("reset");
+  print RESET();
   exit;
 }
 
@@ -28,7 +27,7 @@ my %sysctl;              # sysctl parameters
 my %dmsetup_table;       # dmsetup table info
 my %dmsetup_status;      # dmsetup status info
 
-my $format_title = "%19s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s\n";
+my $format_title = "%14s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %6s %6s %6s\n";
 my $interval = 5;
 my $count = 0;
 my $dev = "/dev/mapper/cachedev";
@@ -42,10 +41,10 @@ print_header();
 my $n = 0;
 while(1){
   if($n % 20 == 0){ # print title every 20 lines
-    print color ("blue");
-    print color ("bold");
+    print YELLOW();
+    print BOLD();;
     printf $format_title, "current_time", "read/s", "write/s", "diskr/s", "diskw/s", "ssdr/s", "ssdw/s", "uread/s", "uwrit/s", "metaw/s", "clean/s","repl/s","wrepl/s", "hit%", "whit%", "dwhit%";
-    print color ("reset");
+    print RESET();
   }
 
   my %dmsetup_status_old = %dmsetup_status;
@@ -61,47 +60,47 @@ while(1){
   $result{dirty_write_hits} = sprintf "%d", ($result{dirty_write_hits} * 100) / ($result{writes} + 0.0001);
 
   # print value
-  print color ("yellow");
-  printf "%19s ", get_current_time();
-  print color ("reset");
+  print YELLOW();
+  printf "%14s ", get_current_time();
+  print RESET();
 
-  $result{reads} > 10000 ? print color ("red") : print color ("white");
-  printf "%7d ", $result{reads} and print color ("reset");
-  $result{writes} > 10000 ? print color ("red") : print color ("white");
-  printf "%7d ", $result{writes} and print color ("reset");
+  $result{reads} > 10000 ? print RED() : print WHITE();
+  printf "%7d ", $result{reads} and print RESET();
+  $result{writes} > 10000 ? print RED() : print WHITE();
+  printf "%7d ", $result{writes} and print RESET();
 
-  $result{disk_reads} > 1000 ? print color ("red") : print color ("green");
-  printf "%7d ", $result{disk_reads} and print color ("reset");
-  $result{disk_writes} > 1000 ? print color ("red") : print color ("green");
-  printf "%7d ", $result{disk_writes} and print color ("reset");
+  $result{disk_reads} > 1000 ? print RED() : print GREEN();
+  printf "%7d ", $result{disk_reads} and print RESET();
+  $result{disk_writes} > 1000 ? print RED() : print GREEN();
+  printf "%7d ", $result{disk_writes} and print RESET();
 
-  $result{ssd_reads} > 10000 ? print color ("red") : print color ("white");
-  printf "%7d ", $result{ssd_reads} and print color ("reset");
-  $result{ssd_writes} > 10000 ? print color ("red") : print color ("white");
-  printf "%7d ", $result{ssd_writes} and print color ("reset");
+  $result{ssd_reads} > 10000 ? print RED() : print WHITE();
+  printf "%7d ", $result{ssd_reads} and print RESET();
+  $result{ssd_writes} > 10000 ? print RED() : print WHITE();
+  printf "%7d ", $result{ssd_writes} and print RESET();
 
-  $result{uncached_reads} > 100 ? print color ("red") : print color ("green");
-  printf "%7d ", $result{uncached_reads} and print color ("reset");
-  $result{uncached_writes} > 100 ? print color ("red") : print color ("green");
-  printf "%7d ", $result{uncached_writes} and print color ("reset");
+  $result{uncached_reads} > 100 ? print RED() : print GREEN();
+  printf "%7d ", $result{uncached_reads} and print RESET();
+  $result{uncached_writes} > 100 ? print RED() : print GREEN();
+  printf "%7d ", $result{uncached_writes} and print RESET();
 
-  $result{md_writes} > 100 ? print color ("red") : print color ("white");
-  printf "%7d ", $result{md_writes} and print color ("reset");
-  $result{cleanings} > 100 ? print color ("red") : print color ("white");
-  printf "%7d ", $result{cleanings} and print color ("reset");
-  $result{replacement} > 100 ? print color ("red") : print color ("white");
-  printf "%7d ", $result{replacement} and print color ("reset");
-  $result{wreplacement} > 100 ? print color ("red") : print color ("white");
-  printf "%7d ", $result{wreplacement} and print color ("reset");
+  $result{md_writes} > 100 ? print RED() : print WHITE();
+  printf "%7d ", $result{md_writes} and print RESET();
+  $result{cleanings} > 100 ? print RED() : print WHITE();
+  printf "%7d ", $result{cleanings} and print RESET();
+  $result{replacement} > 100 ? print RED() : print WHITE();
+  printf "%7d ", $result{replacement} and print RESET();
+  $result{wreplacement} > 100 ? print RED() : print WHITE();
+  printf "%7d ", $result{wreplacement} and print RESET();
 
-  $result{read_hits} < 90 ? print color ("red") : print color ("green");
-  printf "%7s ", $result{read_hits}."|".$hit{read_hits} and print color ("reset");
-  $result{write_hits} < 90 ? print color ("red") : print color ("green");
-  printf "%7s ", $result{write_hits}."|".$hit{write_hits} and print color ("reset");
-  $result{dirty_write_hits} < 90 ? print color ("red") : print color ("green");
-  printf "%7s ", $result{dirty_write_hits}."|".$hit{dirty_write_hits} and print color ("reset");
+  $result{read_hits} < 90 ? print RED() : print GREEN();
+  printf "%6s ", $result{read_hits}."|".$hit{read_hits} and print RESET();
+  $result{write_hits} < 90 ? print RED() : print GREEN();
+  printf "%6s ", $result{write_hits}."|".$hit{write_hits} and print RESET();
+  $result{dirty_write_hits} < 90 ? print RED() : print GREEN();
+  printf "%6s ", $result{dirty_write_hits}."|".$hit{dirty_write_hits} and print RESET();
   print "\n";
-  print color ("reset");
+  print RESET();
 
   $n++;
   exit if($count > 0 && $n >= $count);
@@ -271,7 +270,7 @@ sub get_dmsetup_table{
 # get current time
 ###############################################################
 sub get_current_time{
-  return strftime("%Y-%m-%d %H:%M:%S",localtime);
+  return strftime("%m-%d %H:%M:%S",localtime);
 }
 
 ##############################################################
@@ -283,12 +282,25 @@ sub get_options{
                     'i|interval=i',     
                     'c|count=i',         
                     'd|device=s',         
+                    'n|nocolor',
                   );
 
   $opt{'h'} and print_usage();
   $opt{'i'} and $interval = $opt{'i'};
   $opt{'c'} and $count = $opt{'c'};
   $opt{'d'} and $dev = $opt{'d'};
+
+  if(!defined($opt{'n'})){
+    import Term::ANSIColor ':constants';
+  }
+  else{
+    *RESET     = sub { };
+    *YELLOW    = sub { };
+    *RED       = sub { };
+    *GREEN     = sub { };
+    *WHITE     = sub { };
+    *BOLD      = sub { };
+  }
 }
 
 ##############################################################
@@ -309,12 +321,13 @@ Command line options :
    -i,--interval       Time(second) Interval.  
    -C,--count          Times. 
    -d,--device         Flashcache device.
+   -n,--nocolor        No color mode.
 EOF
   exit;
 }
 
 sub print_header{
-  print color ("green");
+  print GREEN();
   print "======================================================================================================\n";
   print "Flashstat: a tool for flashcache status per second\n";
   print "           Created By jiangfeng\@taobao.com\n";
@@ -346,5 +359,5 @@ sub print_header{
     print "\n";
     print "======================================================================================================\n";
   }
-  print color ("reset");
+  print RESET();
 }
