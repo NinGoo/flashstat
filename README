@@ -10,7 +10,7 @@ Flashstat retrieves information from dmsetup table/dmsetup status/sysctl
 Attention :
 -------------------
 this tool has been merged into Flashcache's utils, if you want new version, please go to the flashcache project:
-https://github.com/facebook/flashcache
+<https://github.com/facebook/flashcache>
 
 Update :
 -------------------
