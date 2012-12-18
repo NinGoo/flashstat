@@ -7,6 +7,11 @@ Flashcache from facebook is a great project. Thanks the author Mohan Srinivasan.
 And this tiny tool flashstat is for flashcache status per second, 
 Flashstat retrieves information from dmsetup table/dmsetup status/sysctl
 
+Attention :
+-------------------
+this tool has been merged into Flashcache's utils, if you want new version, please go to the flashcache project:
+https://github.com/facebook/flashcache
+
 Update :
 -------------------
 2011-01-11 NinGoo version 0.3 parse /proc/../flashcache_stats instead of dmsetup status for new version flashcache
